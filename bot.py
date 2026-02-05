@@ -198,9 +198,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             message_text=message_text,
         )
 
-        # 发送回复
-        await update.message.reply_text(response)
-        logger.info(f"已回复用户 {user.id}")
+        # 按 3 个换行符分割消息，分多次发送
+        messages = [msg.strip() for msg in response.split("\n\n\n") if msg.strip()]
+
+        if not messages:
+            messages = [response]
+
+        for i, msg in enumerate(messages):
+            await update.message.reply_text(msg)
+            logger.info(f"已发送第 {i + 1}/{len(messages)} 条消息给用户 {user.id}")
+
+            # 多条消息之间间隔 600ms
+            if i < len(messages) - 1:
+                await asyncio.sleep(0.6)
 
     except Exception as e:
         logger.error(f"处理消息时出错: {e}")

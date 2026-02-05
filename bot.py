@@ -15,7 +15,7 @@ import sys
 import logging
 import asyncio
 from datetime import datetime
-from telegram import Update
+from telegram import Update, InputFile
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -198,6 +198,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             message_text=message_text,
         )
 
+        # 检测图片标记 [IMAGE:路径]
+        import re
+        image_pattern = r'\[IMAGE:([^\]]+)\]'
+        image_match = re.search(image_pattern, response)
+        image_path = None
+
+        if image_match:
+            image_path = image_match.group(1).strip()
+            # 从回复中移除图片标记
+            response = re.sub(image_pattern, '', response).strip()
+
         # 按 3 个换行符分割消息，分多次发送
         messages = [msg.strip() for msg in response.split("\n\n\n") if msg.strip()]
 
@@ -205,12 +216,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             messages = [response]
 
         for i, msg in enumerate(messages):
-            await update.message.reply_text(msg)
-            logger.info(f"已发送第 {i + 1}/{len(messages)} 条消息给用户 {user.id}")
+            if msg:  # 只发送非空消息
+                await update.message.reply_text(msg)
+                logger.info(f"已发送第 {i + 1}/{len(messages)} 条消息给用户 {user.id}")
 
-            # 多条消息之间间隔 600ms
-            if i < len(messages) - 1:
-                await asyncio.sleep(0.6)
+                # 多条消息之间间隔 600ms
+                if i < len(messages) - 1:
+                    await asyncio.sleep(0.6)
+
+        # 如果有图片，发送图片
+        if image_path and os.path.exists(image_path):
+            try:
+                with open(image_path, 'rb') as photo:
+                    await update.message.reply_photo(photo=InputFile(photo))
+                logger.info(f"已发送图片给用户 {user.id}: {image_path}")
+            except Exception as img_err:
+                logger.error(f"发送图片失败: {img_err}")
+                await update.message.reply_text(f"图片生成好了，但发送失败了喵～({img_err})")
 
     except Exception as e:
         logger.error(f"处理消息时出错: {e}")

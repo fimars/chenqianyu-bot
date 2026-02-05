@@ -46,9 +46,24 @@ except Exception as e:
     handler = SimpleMessageHandler()
 
 
+def check_user_permission(user_id: int) -> bool:
+    """检查用户是否有权限访问"""
+    if not Config.ALLOWED_USER_ID:
+        return True  # 如果没有设置白名单，允许所有用户
+    allowed_ids = [int(uid.strip()) for uid in Config.ALLOWED_USER_ID.split(",")]
+    return user_id in allowed_ids
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """发送欢迎消息"""
     user = update.effective_user
+
+    # 检查用户权限
+    if not check_user_permission(user.id):
+        await update.message.reply_text("抱歉，你没有权限使用这个 Bot 喵～🐼")
+        logger.warning(f"未授权用户尝试访问: {user.id} ({user.username})")
+        return
+
     welcome_msg = f"""你好 {user.first_name}！我是陈千语喵～🐼
 
 我是通过 Opencode AI 驱动的 Telegram Bot！
@@ -67,6 +82,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """发送帮助信息"""
+    user = update.effective_user
+
+    # 检查用户权限
+    if not check_user_permission(user.id):
+        return
+
     help_text = """📖 帮助信息喵～
 
 🤖 关于我：
@@ -92,6 +113,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Ping 命令"""
+    user = update.effective_user
+
+    # 检查用户权限
+    if not check_user_permission(user.id):
+        return
+
     await update.message.reply_text("✅ Pong! Bot 运行正常喵～🐼")
 
 
@@ -99,6 +126,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     """处理收到的消息"""
     user = update.effective_user
     message_text = update.message.text
+
+    # 检查用户权限
+    if not check_user_permission(user.id):
+        await update.message.reply_text("抱歉，你没有权限使用这个 Bot 喵～🐼")
+        logger.warning(f"未授权用户尝试发消息: {user.id} ({user.username})")
+        return
 
     logger.info(f"收到来自 {user.id} ({user.username}) 的消息: {message_text}")
 

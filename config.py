@@ -18,6 +18,9 @@ class Config:
     # Opencode CLI 配置
     OPENCODE_CLI = os.getenv("OPENCODE_CLI", "opencode")
 
+    # 安全设置 - 只允许特定用户访问
+    ALLOWED_USER_ID = os.getenv("ALLOWED_USER_ID")
+
     # 服务器配置
     BOT_PORT = int(os.getenv("BOT_PORT", "3993"))
     WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")

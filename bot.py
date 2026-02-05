@@ -30,11 +30,61 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import Config
 from message_handler import MessageHandler as OpencodeHandler, SimpleMessageHandler
 
-# 配置日志
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=getattr(logging, Config.LOG_LEVEL),
+
+# 配置日志格式
+class ColoredFormatter(logging.Formatter):
+    """带颜色的日志格式化器"""
+
+    COLORS = {
+        "DEBUG": "\033[36m",  # 青色
+        "INFO": "\033[32m",  # 绿色
+        "WARNING": "\033[33m",  # 黄色
+        "ERROR": "\033[31m",  # 红色
+        "CRITICAL": "\033[35m",  # 紫色
+    }
+    RESET = "\033[0m"
+
+    def format(self, record):
+        # 简化 logger 名称
+        if record.name.startswith("telegram"):
+            record.name = "TG"
+        elif record.name.startswith("httpx"):
+            record.name = "HTTP"
+        elif len(record.name) > 15:
+            record.name = record.name[:12] + "..."
+
+        # 添加颜色
+        levelname = record.levelname
+        if levelname in self.COLORS:
+            record.levelname = f"{self.COLORS[levelname]}{levelname}{self.RESET}"
+
+        # 格式化时间
+        record.asctime = self.formatTime(record, "%H:%M:%S")
+
+        return super().format(record)
+
+
+# 创建处理器
+console_handler = logging.StreamHandler()
+console_handler.setLevel(getattr(logging, Config.LOG_LEVEL))
+
+# 设置格式
+formatter = ColoredFormatter(
+    fmt="%(asctime)s %(levelname)s [%(name)s] %(message)s", datefmt="%H:%M:%S"
 )
+console_handler.setFormatter(formatter)
+
+# 配置根日志器
+root_logger = logging.getLogger()
+root_logger.setLevel(getattr(logging, Config.LOG_LEVEL))
+root_logger.handlers = []  # 清除默认处理器
+root_logger.addHandler(console_handler)
+
+# 抑制第三方库的冗余日志
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("telegram").setLevel(logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 # 初始化消息处理器

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 from dataclasses import dataclass
 import logging
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -41,26 +42,56 @@ class SessionManager:
         self.sessions_dir = self.workspace_dir / "sessions"
         self.sessions_dir.mkdir(exist_ok=True)
 
-        # 确保 memory 软链接存在
-        self._ensure_memory_link()
+        # 确保所有必要的软链接存在
+        self._ensure_all_links()
 
-    def _ensure_memory_link(self):
-        """确保 memory 软链接指向 ~/.config/opencode/memory"""
-        memory_link = self.workspace_dir / "memory"
-        memory_target = Path.home() / ".config" / "opencode" / "memory"
+    def _ensure_all_links(self):
+        """确保所有必要的文件和目录软链接存在"""
+        agents_dir = Path(Config.AGENTS_CONFIG_DIR)
 
-        # 确保目标目录存在
-        memory_target.mkdir(parents=True, exist_ok=True)
+        # 需要链接的文件和目录
+        links = [
+            ("memory", agents_dir / "memory", True),  # 目录
+            ("AGENTS.md", agents_dir / "AGENTS.md", False),
+            ("IDENTITY.md", agents_dir / "IDENTITY.md", False),
+            ("SOUL.md", agents_dir / "SOUL.md", False),
+            ("USER.md", agents_dir / "USER.md", False),
+            ("MEMORY.md", agents_dir / "MEMORY.md", False),
+        ]
+
+        for link_name, target, is_dir in links:
+            self._ensure_link(link_name, target, is_dir)
+
+    def _ensure_link(self, link_name: str, target: Path, is_dir: bool = False):
+        """确保单个软链接存在"""
+        link_path = self.workspace_dir / link_name
+
+        # 确保目标存在（如果是目录则创建）
+        if is_dir:
+            target.mkdir(parents=True, exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
 
         # 创建或修复软链接
-        if memory_link.exists() or memory_link.is_symlink():
-            if not memory_link.is_symlink() or memory_link.readlink() != memory_target:
-                memory_link.unlink()
-                memory_link.symlink_to(memory_target)
-                logger.info(f"更新 memory 软链接: {memory_target}")
+        if link_path.exists() or link_path.is_symlink():
+            if not link_path.is_symlink():
+                # 如果存在但不是软链接，跳过（保留用户文件）
+                logger.warning(f"{link_name} 已存在且不是软链接，跳过")
+                return
+            if link_path.readlink() != target:
+                link_path.unlink()
+                link_path.symlink_to(target)
+                logger.info(f"更新 {link_name} 软链接: {target}")
         else:
-            memory_link.symlink_to(memory_target)
-            logger.info(f"创建 memory 软链接: {memory_target}")
+            if target.exists():
+                link_path.symlink_to(target)
+                logger.info(f"创建 {link_name} 软链接: {target}")
+            else:
+                # 目标文件不存在，创建空文件
+                if not is_dir:
+                    target.touch()
+                    link_path.symlink_to(target)
+                    logger.info(f"创建空 {link_name} 并链接: {target}")
 
     def _get_period_file(self) -> Path:
         """获取当前时间段的 session 文件路径"""
@@ -72,7 +103,7 @@ class SessionManager:
     def _get_memory_file(self) -> Path:
         """获取今天的 memory 文件路径"""
         now = datetime.now()
-        memory_dir = Path.home() / ".config" / "opencode" / "memory"
+        memory_dir = Path(Config.AGENTS_CONFIG_DIR) / "memory"
         memory_dir.mkdir(parents=True, exist_ok=True)
         return memory_dir / f"{now.strftime('%Y-%m-%d')}.md"
 

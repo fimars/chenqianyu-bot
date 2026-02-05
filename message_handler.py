@@ -68,7 +68,20 @@ class MessageHandler:
 
     def _build_prompt(self, message: str) -> str:
         """构建发送给 Opencode 的提示词"""
-        return f"""管理员从 Telegram 发来消息：
+        agents_dir = Config.AGENTS_CONFIG_DIR
+        return f"""AGENTS_CONFIG_DIR: {agents_dir}
+
+此目录包含以下重要文件（基于该目录）：
+- AGENTS.md - 你的行为指南和工作流程
+- IDENTITY.md - 你的身份信息（陈千语）
+- SOUL.md - 你的本质和个性
+- USER.md - 关于你帮助的用户的信息
+- MEMORY.md - 长期记忆（仅在主会话中加载）
+- memory/YYYY-MM-DD.md - 每日记忆日志
+
+请在开始工作前阅读这些文件喵～
+
+管理员从 Telegram 发来消息：
 
 {message}"""
 

@@ -28,6 +28,11 @@ class Config:
     # 日志配置
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
+    # AGENTS.md 配置目录
+    AGENTS_CONFIG_DIR = os.getenv(
+        "AGENTS_CONFIG_DIR", os.path.expanduser("~/.config/opencode/")
+    )
+
     @classmethod
     def validate(cls):
         """验证配置是否正确"""

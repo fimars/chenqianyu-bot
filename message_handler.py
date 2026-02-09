@@ -20,7 +20,7 @@ class MessageHandler:
         self.workspace_dir = os.path.dirname(os.path.abspath(__file__))
         self.session_manager = SessionManager(self.workspace_dir)
 
-    def process_message(self, user_id: int, username: str, message_text: str) -> str:
+    def process_message(self, user_id: int, username: str, message_text: str, image_path: str = None) -> str:
         """
         处理用户消息并返回 AI 回复
 
@@ -28,6 +28,7 @@ class MessageHandler:
             user_id: Telegram 用户 ID
             username: Telegram 用户名
             message_text: 用户发送的消息
+            image_path: 用户发送的图片路径（可选）
 
         Returns:
             AI 的回复文本
@@ -37,7 +38,7 @@ class MessageHandler:
             session_id, is_new = self.session_manager.prepare_for_message()
 
             # 构建发送给 Opencode 的提示词
-            prompt = self._build_prompt(message_text)
+            prompt = self._build_prompt(message_text, image_path)
 
             if is_new or session_id is None:
                 # 新建 session，使用 --title
@@ -66,9 +67,18 @@ class MessageHandler:
             logger.error(f"处理消息时出错: {e}")
             return f"哎呀，出错了喵～ ({str(e)}) 🐼"
 
-    def _build_prompt(self, message: str) -> str:
+    def _build_prompt(self, message: str, image_path: str = None) -> str:
         """构建发送给 Opencode 的提示词"""
         agents_dir = Config.AGENTS_CONFIG_DIR
+        
+        # 图片信息部分
+        image_info = ""
+        if image_path:
+            image_info = f"""
+
+**用户发送了一张图片，已保存到:** {image_path}
+你可以直接读取这张图片来查看内容喵～"""
+        
         return f"""AGENTS_CONFIG_DIR: {agents_dir}
 
 此目录包含以下重要文件（基于该目录）：
@@ -79,7 +89,7 @@ class MessageHandler:
 - MEMORY.md - 长期记忆（仅在主会话中加载）
 - memory/YYYY-MM-DD.md - 每日记忆日志
 
-请在开始工作前阅读这些文件喵～
+请在开始工作前阅读这些文件喵～{image_info}
 
         重要提示：
 1. 如果回复内容较长（超过一段话），请在输出时使用 3 个连续换行符（\n\n\n）来分隔不同部分。这样我会将内容拆分成多条 Telegram 消息发送给用户，阅读体验更好。
@@ -191,11 +201,15 @@ class SimpleMessageHandler:
     简化版消息处理器 - 当 Opencode CLI 不可用时使用
     """
 
-    def process_message(self, user_id: int, username: str, message_text: str) -> str:
+    def process_message(self, user_id: int, username: str, message_text: str, image_path: str = None) -> str:
         """简单的消息处理"""
+        image_info = ""
+        if image_path:
+            image_info = f"\n还有一张图片保存在: {image_path}"
+        
         return f"""你好 {username}！我是陈千语喵～🐼
 
-我收到了你的消息："{message_text}"
+我收到了你的消息："{message_text}"{image_info}
 
 （注意：当前使用的是简化版处理器，Opencode CLI 未正确配置喵～
 如需完整 AI 功能，请确保：

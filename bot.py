@@ -23,6 +23,7 @@ from telegram.ext import (
     filters,
     ContextTypes,
 )
+import tempfile
 
 # 添加当前目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -239,6 +240,93 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("抱歉，处理消息时出错了喵～请稍后再试！🐼")
 
 
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """处理收到的图片消息"""
+    user = update.effective_user
+    
+    # 检查用户权限
+    if not check_user_permission(user.id):
+        await update.message.reply_text("抱歉，你没有权限使用这个 Bot 喵～🐼")
+        logger.warning(f"未授权用户尝试发图片: {user.id} ({user.username})")
+        return
+    
+    # 获取图片文件
+    photo = update.message.photo[-1]  # 取最大尺寸的图片
+    caption = update.message.caption or ""
+    
+    logger.info(f"收到来自 {user.id} ({user.username}) 的图片，尺寸: {photo.width}x{photo.height}")
+    
+    # 显示"正在输入..."状态
+    await context.bot.send_chat_action(
+        chat_id=update.effective_chat.id, action="typing"
+    )
+    
+    try:
+        # 下载图片
+        file = await context.bot.get_file(photo.file_id)
+        
+        # 创建临时文件保存图片
+        temp_dir = tempfile.gettempdir()
+        image_filename = f"telegram_photo_{user.id}_{photo.file_id}.jpg"
+        image_path = os.path.join(temp_dir, image_filename)
+        
+        await file.download_to_drive(image_path)
+        logger.info(f"图片已下载到: {image_path}")
+        
+        # 准备消息内容
+        message_with_image = f"[用户发送了一张图片]"
+        if caption:
+            message_with_image += f"\n配文: {caption}"
+        
+        # 调用消息处理器获取回复，传入图片路径
+        response = handler.process_message(
+            user_id=user.id,
+            username=user.username or user.first_name,
+            message_text=message_with_image,
+            image_path=image_path,
+        )
+        
+        # 检测图片标记 [IMAGE:路径]
+        import re
+        image_pattern = r'\[IMAGE:([^\]]+)\]'
+        image_match = re.search(image_pattern, response)
+        response_image_path = None
+        
+        if image_match:
+            response_image_path = image_match.group(1).strip()
+            # 从回复中移除图片标记
+            response = re.sub(image_pattern, '', response).strip()
+        
+        # 按 3 个换行符分割消息，分多次发送
+        messages = [msg.strip() for msg in response.split("\n\n\n") if msg.strip()]
+        
+        if not messages:
+            messages = [response]
+        
+        for i, msg in enumerate(messages):
+            if msg:  # 只发送非空消息
+                await update.message.reply_text(msg)
+                logger.info(f"已发送第 {i + 1}/{len(messages)} 条消息给用户 {user.id}")
+                
+                # 多条消息之间间隔 600ms
+                if i < len(messages) - 1:
+                    await asyncio.sleep(0.6)
+        
+        # 如果有图片，发送图片
+        if response_image_path and os.path.exists(response_image_path):
+            try:
+                with open(response_image_path, 'rb') as photo_file:
+                    await update.message.reply_photo(photo=InputFile(photo_file))
+                logger.info(f"已发送图片给用户 {user.id}: {response_image_path}")
+            except Exception as img_err:
+                logger.error(f"发送图片失败: {img_err}")
+                await update.message.reply_text(f"图片生成好了，但发送失败了喵～({img_err})")
+        
+    except Exception as e:
+        logger.error(f"处理图片消息时出错: {e}")
+        await update.message.reply_text("抱歉，处理图片时出错了喵～请稍后再试！🐼")
+
+
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """处理错误"""
     logger.error(f"更新 {update} 导致错误: {context.error}")
@@ -273,6 +361,9 @@ def main() -> None:
     application.add_handler(CommandHandler("ping", ping))
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+    )
+    application.add_handler(
+        MessageHandler(filters.PHOTO, handle_photo)
     )
 
     # 错误处理器

@@ -6,7 +6,7 @@ sessions/ 目录结构：
 └── 2025-02-05-PM      (session_id count)
 
 每行格式：session_id count
-满 10 次后自动归档到 memory
+满 50 次后自动归档到 memory
 """
 
 import os
@@ -21,7 +21,7 @@ from config import Config
 logger = logging.getLogger(__name__)
 
 # 会话次数上限
-MESSAGE_LIMIT = 10
+MESSAGE_LIMIT = 50
 
 
 @dataclass
@@ -146,7 +146,7 @@ class SessionManager:
                     session_id=session_id, count=count, need_archive=False
                 )
             else:
-                # 满 10 次，需要先归档，然后新建
+                # 满 50 次，需要先归档，然后新建
                 return SessionInfo(
                     session_id=None,
                     count=count,
@@ -224,7 +224,7 @@ class SessionManager:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=50,
             )
             if result.returncode == 0:
                 lines = result.stdout.strip().split("\n")
@@ -258,7 +258,7 @@ class SessionManager:
         info = self.get_session_info()
 
         if info.need_archive and info.archive_session_id:
-            # 先归档满 10 次的 session
+            # 先归档满 50 次的 session
             self._archive_session(info.archive_session_id)
             return None, True
 
